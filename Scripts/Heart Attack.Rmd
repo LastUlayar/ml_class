@@ -1,0 +1,16 @@
+---
+title: "Heart Attack"
+author: "Jaime Ulayar Arroyo"
+date: "2023-02-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading data
+
+```{r}
+data <- read_delim("Data/heart_mod_2023-02-08(1).csv", delim = "p", escape_double = FALSE, col_types = cols(target = col_logical()), locale = locale(decimal_mark = ",", grouping_mark = "."), trim_ws = TRUE)
+```

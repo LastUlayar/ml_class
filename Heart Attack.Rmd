@@ -1,0 +1,138 @@
+---
+title: "Heart Attack"
+author: "Jaime Ulayar Arroyo"
+date: "2023-02-08"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading data
+
+```{r}
+library(readr)
+data <- read_delim("Data/heart_mod_2023-02-08(1).csv", delim = "p", escape_double = FALSE,locale = locale(decimal_mark = ",", grouping_mark = "."), trim_ws = TRUE)
+head(data)
+```
+
+#### En el campo de edad aparecen 3 registros con edades imposibles, seguramente debidas a la presencia de una coma decimal, ya que acaban las 3 en 0.
+
+#### En el campo resting bloodpressure hay un valor anormalmente alto. De nuevo parece ser por la presencia de una coma decimal.
+
+#### En el campo de colesterol hay un valor particularmente bajo.
+
+#### En el campo target hay un valor "11" y un valor "O", cuando es un campo lógico. Lo más probable es que correspondieran a los valores "1" y "0" respectivamente.
+
+## Renaming
+
+```{r}
+data$sex <-  as.factor(data$sex)
+levels(data$sex) <- c("Female", "Male")
+
+data$cp <- as.factor(data$cp)
+levels(data$cp) <- c("Assymmptomatic", "Atypical angina", "No angina", "Typical angina")
+
+data$fbs <- as.factor(data$fbs)
+levels(data$fbs) <- c("No", " Yes")
+
+data$restecg <- as.factor(data$restecg)
+levels(data$restecg) <- c("Hypertrophy", "Normal", "Abnormalities")
+
+data$exang <- as.factor(data$exang)
+levels(data$exang) <- c("No", "Yes")
+
+data$slope <- as.factor(data$slope)
+levels(data$slope) <- c("Descending", "Flat", "Ascending")
+
+data$thal <- as.factor(data$thal)
+levels(data$thal) <- c("Fixed defect","Normal flow", "Reversible defect")
+
+data$target <- as.character(data$target)
+
+data$target[data$target == "11"] <- 1
+data$target[data$target == "O"] <- 0
+
+data$target <- as.factor(data$target)
+levels(data$target) <- c("Yes", "No")
+
+head(data)
+```
+
+## Separating data
+```{r}
+data <- data[,-1]
+
+type_class <- sapply(data, class)
+table(type_class)
+
+data$oldpeak <- gsub(",", ".", data$oldpeak)
+data$oldpeak <- as.numeric(data$oldpeak)
+
+data_num <- data[,type_class %in% c("integer", "numeric")]
+data_fac <- data[,type_class %in% c("factor")]
+```
+## Checking
+
+```{r}
+data_num$chol[data_num$chol == 5] <- NA
+data_num$trestbps[data_num$trestbps == 1540] <- 154
+data_num$age[data_num$age >= 100] <- data_num$age[data_num$age >= 100]/10
+
+meantrestbps <- mean(data$trestbps,na.rm = TRUE)
+data_num$trestbps[is.na(data_num$trestbps)] <- meantrestbps
+
+meanchol <- mean(data$chol,na.rm = TRUE)
+data_num$chol[is.na(data_num$chol)] <- meanchol
+
+meanthalach <- mean(data$thalach,na.rm = TRUE)
+data_num$thalach[is.na(data_num$thalach)] <- meanthalach
+
+meanca <- mean(data$ca,na.rm = TRUE)
+data_num$ca[is.na(data_num$ca)] <- meanca
+
+summary(data_num)
+```
+
+## Visualization
+
+```{r}
+library(tidyverse)
+
+plot(data_num$age, main = "Age", xlab = "Pacientes", ylab = "Age")
+hist(data_num$age, col = "red", breaks = (max(data_num$age)-min(data_num$age))/5, main = "Distribution of age")
+
+par(mfrow = c(1,2))
+hist(data_num$age)
+boxplot(data_num$age)
+
+shapiro.test(data_num$age)
+
+plot(data_num$trestbps, main = "Trest", xlab = "Pacientes", ylab = "Trest")
+hist(data_num$trestbps, col = "blue", breaks = (max(data_num$trestbps)-min(data_num$trestbps))/20, main = " Distribution of trestbps")
+
+plot(data_num$chol, main = "Chol", xlab = "Pacientes", ylab = "Chol")
+hist(data_num$chol, col = "yellow", breaks = (max(data_num$chol)-min(data_num$chol))/20, main = " Distribution of chol")
+```
+
+```{r}
+par(mfrow=c(2,3))
+for (i in 1:length(data_num)){
+  boxplot(data_num[i], main = names(data_num)[i], col = i+1)
+}
+
+par(mfrow = c(4,2))
+for (i in 1:length(data_fac)){
+  testchis = chisq.test(table(data_fac[i]))
+  if (testchis$p.value > 1e-15){
+    color = c("red", "orange", "yellow", "white")
+  } else {
+    color = c("blue", "cyan", "green", "black")
+  }
+  barplot(prop.table(table(data_fac[[i]])), main = paste(names(data_fac)[i]," - p.value = ", round(testchis$p.value, digits = 3)), horiz = FALSE, col = color)
+}
+```
+
