@@ -1,0 +1,176 @@
+---
+title: "Tarea"
+author: "Jaime Ulayar Arroyo"
+date: "2023-02-15"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading data
+
+```{r}
+library(readr)
+data <- read_delim("Data/heart_mod_2023-02-08(1).csv", delim = "p", escape_double = FALSE,locale = locale(decimal_mark = ",", grouping_mark = "."), trim_ws = TRUE)
+```
+
+En el campo de edad aparecen 3 registros con edades imposibles, seguramente debidas a la presencia de una coma decimal, ya que acaban las 3 en 0.
+
+En el campo resting bloodpressure hay un valor anormalmente alto. De nuevo parece ser por la presencia de una coma decimal.
+
+En el campo de colesterol hay un valor particularmente bajo.
+
+En el campo target hay un valor "11" y un valor "O", cuando es un campo lógico. Lo más probable es que correspondieran a los valores "1" y "0" respectivamente.
+
+## Renaming
+
+```{r}
+data$sex <-  as.factor(data$sex)
+levels(data$sex) <- c("Female", "Male")
+
+data$cp <- as.factor(data$cp)
+levels(data$cp) <- c("Assymmptomatic", "Atypical angina", "No angina", "Typical angina")
+
+data$fbs <- as.factor(data$fbs)
+levels(data$fbs) <- c("No", " Yes")
+
+data$restecg <- as.factor(data$restecg)
+levels(data$restecg) <- c("Hypertrophy", "Normal", "Abnormalities")
+
+data$exang <- as.factor(data$exang)
+levels(data$exang) <- c("No", "Yes")
+
+data$slope <- as.factor(data$slope)
+levels(data$slope) <- c("Descending", "Flat", "Ascending")
+
+data$thal <- as.factor(data$thal)
+levels(data$thal) <- c("Fixed defect","Normal flow", "Reversible defect")
+
+data$target <- as.character(data$target)
+
+data$target[data$target == "11"] <- 1
+data$target[data$target == "O"] <- 0
+
+data$target <- as.factor(data$target)
+levels(data$target) <- c("Yes", "No")
+```
+
+## Separating data
+
+```{r}
+data <- data[,-1]
+
+type_class <- sapply(data, class)
+
+data$oldpeak <- gsub(",", ".", data$oldpeak)
+data$oldpeak <- as.numeric(data$oldpeak)
+
+data_num <- data[,type_class %in% c("integer", "numeric")]
+data_fac <- data[,type_class %in% c("factor")]
+```
+## Checking
+
+```{r}
+data_num$chol[data_num$chol == 5] <- NA
+data_num$trestbps[data_num$trestbps == 1540] <- 154
+data_num$age[data_num$age >= 100] <- data_num$age[data_num$age >= 100]/10
+
+meantrestbps <- mean(data$trestbps,na.rm = TRUE)
+data_num$trestbps[is.na(data_num$trestbps)] <- meantrestbps
+
+meanchol <- mean(data$chol,na.rm = TRUE)
+data_num$chol[is.na(data_num$chol)] <- meanchol
+
+meanthalach <- mean(data$thalach,na.rm = TRUE)
+data_num$thalach[is.na(data_num$thalach)] <- meanthalach
+
+meanca <- mean(data$ca,na.rm = TRUE)
+data_num$ca[is.na(data_num$ca)] <- meanca
+```
+
+## Normalization
+```{r}
+centralizar_normalizar = function(var_num){
+  centrada = var_num - mean(var_num, na.rm = TRUE)
+  normalizada = centrada/sd(var_num, na.rm = TRUE)
+  return (normalizada)
+}
+
+data_aux <- data_fac
+
+for (i in 1:length(data_num)){
+  data_aux[,paste0("N_", names(data_num)[i])] <- centralizar_normalizar(data_num[[i]])
+}
+
+data_num_N <- data_aux[,8:14]
+data_fac_N <- data_aux[,1:8]
+```
+
+## Visualization
+
+```{r}
+
+summary(data_num_N)
+par(mfrow = c(2,3))
+for (i in 2:length(data_num_N)){
+  boxplot(data_num_N[i], main = names(data_num_N)[i], col = i + 1)
+}
+
+par(mfrow = c(2,2))
+for(i in 1:4){
+  barplot(prop.table(table(data_fac[i])), main = names(data_fac)[i], col = i + 1, las = 2, horiz = TRUE)
+}
+
+par(mfrow = c(2,2))
+for(i in 5:8){
+  barplot(prop.table(table(data_fac[i])), main = names(data_fac)[i], col = i + 1, las = 2, horiz = TRUE)
+}
+```
+
+```{}
+p_valores_num <- data.frame(matrix(NA, nrow = 1, ncol = length(data_num_N)-1))
+
+for (i in 2:length(data_num_N)){
+  formula = paste0("data_num_N$", names(data_num_N)[i], " ~ data_num_N$target")
+  test <- t.test(as.formula(formula), data = data_num_N)
+  p_valores_num[1,i-1] <- test$p.value
+}
+names(p_valores_num) <- names(data_num_N)[-1]
+
+p_valores_fac <- data.frame(matrix(NA, nrow = 1, ncol = length(data_fac_N)-1))
+
+for (i in 1:(length(data_fac_N)-1)){
+  formula = paste0("data_fac_N$", names(data_fac_N)[i], " ~ data_fac_N$target")
+  test <- chisq.test(as.formula(formula))
+  p_valores_fac[1,i] <- test$p.value
+}
+
+```
+
+## Modelling
+
+```{r}
+p_valores <- data.frame(matrix(NA, nrow = 1, ncol = length(data_num_N)-1))
+
+mod <- glm(target ~ N_age, data = data_aux, family = binomial(link = "logit"))
+
+mod <- glm(target ~ N_ca, data = data_aux, family = binomial(link = "logit"))
+
+j = 1
+for (i in data_aux){
+  mod <- glm(target ~ i, data = data_aux, family = binomial(link = "logit"))
+  valor <- coef(summary(mod))[2,4]
+  p_valores[,j] <- valor
+  j <- j+1
+}
+names(p_valores) <- names(data_aux)
+
+p_valores <- subset(p_valores, select = -target)
+
+p_valores
+```
+
+
