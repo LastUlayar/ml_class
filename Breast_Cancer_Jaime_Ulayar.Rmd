@@ -1,0 +1,367 @@
+---
+title: "Breast_Cancer_Jaime_Ulayar"
+author: "Jaime Ulayar Arroyo"
+date: "2023-02-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Importar datos
+
+Al abrir el archivo "Breast_Cancer_train.data" con el bloc de notas se ve que el delimitador de campos es el conjunto de caracteres "h_". El archivo de información nos indica que no se incluyen los nombres de las columnas en el archivo.
+
+```{r}
+library(readr)
+Breast_Cancer_train <- read_delim("Breast_Cancer_train.data", 
+                                  delim = "h_", escape_double = FALSE, col_names = FALSE,
+                                  trim_ws = TRUE)
+
+Breast_Cancer_test <- read_delim("Breast_Cancer_test.data", 
+    delim = "\\/", escape_double = FALSE, 
+    col_names = names(Breast_Cancer_train)[1:11], 
+    trim_ws = TRUE)
+```
+
+# Renombrar campos
+
+Renombramos los campos manualmente de acuerdo a la información proporcionada en "breast-cancer.names".
+```{r}
+names(Breast_Cancer_train) <- c("ID",
+                                "Thick",
+                                "Size",
+                                "Shape",
+                                "MargAdhe",
+                                "SingSize",
+                                "Nuclei",
+                                "Chrom",
+                                "Nucleoli",
+                                "Mitoses",
+                                "Group",
+                                "Class")
+
+names(Breast_Cancer_test) <- c("ID",
+                                "Thick",
+                                "Size",
+                                "Shape",
+                                "MargAdhe",
+                                "SingSize",
+                                "Nuclei",
+                                "Chrom",
+                                "Nucleoli",
+                                "Mitoses",
+                                "Group")
+```
+
+# Inspección, correción y visualización de variables
+
+Recorremos en un bucle todas las columnas del dataframe e inspeccionamos que valores encontramos dentro de cada variable.
+```{r}
+for(i in 2:length(Breast_Cancer_train)){
+  print(c(names(Breast_Cancer_train)[i],table(Breast_Cancer_train[[i]])))
+}
+
+for(i in 2:length(Breast_Cancer_test)){
+  print(c(names(Breast_Cancer_test)[i],table(Breast_Cancer_test[[i]])))
+}
+```
+
+La variable "Thick" es una variable numérica discreta (1-10). Sin embargo presenta dos valores que no entran en el rango de posibilidades (30 y 100). Lo más razonable es pensar que se ha incluido un 0 más a estos dos registros por accidente o por comas decimales. Se quita el último cero de ambos. En la dataset test hay un 80, que pasará a un 8.
+
+```{r}
+Breast_Cancer_train$Thick[Breast_Cancer_train$Thick > 10] <- Breast_Cancer_train$Thick[Breast_Cancer_train$Thick > 10]/10
+table(Breast_Cancer_train$Thick)
+hist(Breast_Cancer_train$Thick, breaks = 10)
+Breast_Cancer_test$Thick[Breast_Cancer_test$Thick > 10] <- Breast_Cancer_test$Thick[Breast_Cancer_test$Thick > 10]/10
+```
+
+La variable "Size" es una variable numérica discreta (1-10). Sin embargo presenta un valor "?" y otro valor de 30. El archivo informativo menciona que los datos perdidos se marcan con un "?" por lo que el primero se sustituye por un NA y el otro se procede de la misma forma que con la variable "Thick". Una vez corregido estos datos se guarda la variable como numérica ya que al contener "?" se detectó como caracter.
+```{r}
+Breast_Cancer_train$Size[Breast_Cancer_train$Size == "?"] <- NA
+Breast_Cancer_train$Size[Breast_Cancer_train$Size == 30] <- 3
+Breast_Cancer_train$Size <- as.numeric(Breast_Cancer_train$Size)
+meanSize <- mean(Breast_Cancer_train$Size,na.rm = TRUE)
+Breast_Cancer_train$Size[is.na(Breast_Cancer_train$Size)] <- meanSize
+table(Breast_Cancer_train$Size)
+hist(Breast_Cancer_train$Size, breaks = 10)
+Breast_Cancer_test$Size[Breast_Cancer_test$Size == "?"] <- NA
+Breast_Cancer_test$Size[Breast_Cancer_test$Size == 30] <- 3
+Breast_Cancer_test$Size[is.na(Breast_Cancer_test$Size)] <- meanSize
+Breast_Cancer_test$Size <- as.numeric(Breast_Cancer_test$Size)
+```
+
+La variable "Shape" es una variable numérica discreta (1-10). Contiene un -7, un 1.0, un "?" y un 80. Lo más razonable es pensar que se añadió un "-" por accidente delante del siete. El número decimal se redondea como un entero. Los otros datos son análogos a ejemplos anteriores. Al contener "?" se leyó como caracter. Se pasa a variable numerica.
+
+```{r}
+Breast_Cancer_train$Shape[Breast_Cancer_train$Shape == "?"] <- NA
+Breast_Cancer_train$Shape[Breast_Cancer_train$Shape == "-7"] <- "7"
+Breast_Cancer_train$Shape[Breast_Cancer_train$Shape == "1.0"] <- "1"
+Breast_Cancer_train$Shape[Breast_Cancer_train$Shape == "80"] <- "8" 
+Breast_Cancer_train$Shape <- as.numeric(Breast_Cancer_train$Shape)
+meanShape <- mean(Breast_Cancer_train$Shape,na.rm = TRUE)
+Breast_Cancer_train$Shape[is.na(Breast_Cancer_train$Shape)] <- meanShape
+table(Breast_Cancer_train$Shape)
+hist(Breast_Cancer_train$Shape, breaks = 10)
+Breast_Cancer_test$Shape[Breast_Cancer_test$Shape == "?"] <- NA
+Breast_Cancer_test$Shape <- as.numeric(Breast_Cancer_test$Shape)
+Breast_Cancer_test$Shape[is.na(Breast_Cancer_test$Shape)] <- meanShape
+```
+
+La variable "MargAdhe" es una variable numérica discreta (1-10). Contiene un -1 y un 100. Se ignora el negativo y se quita un 0 al 100.
+
+```{r}
+Breast_Cancer_train$MargAdhe[Breast_Cancer_train$MargAdhe == -1] <- 1
+Breast_Cancer_train$MargAdhe[Breast_Cancer_train$MargAdhe == 100] <- 10
+table(Breast_Cancer_train$MargAdhe)
+hist(Breast_Cancer_train$MargAdhe, breaks = 10)
+```
+
+La variable "SingSize" es una variable numérica discreta (1-10). Contiene un 100 y dos 60. Se ignoran las ultimos ceros.
+```{r}
+Breast_Cancer_train$SingSize[Breast_Cancer_train$SingSize > 10] <- Breast_Cancer_train$SingSize[Breast_Cancer_train$SingSize > 10]/10
+meanSingSize <- mean(Breast_Cancer_train$SingSize)
+table(Breast_Cancer_train$SingSize)
+hist(Breast_Cancer_train$SingSize, breaks = 10)
+Breast_Cancer_test$SingSize[Breast_Cancer_test$SingSize == "?"] <- NA
+Breast_Cancer_test$SingSize <- as.numeric(Breast_Cancer_test$SingSize)
+Breast_Cancer_test$SingSize[is.na(Breast_Cancer_test$SingSize)] <- meanSingSize
+```
+
+La variable "Nuclei" es una variable numérica discreta (1-10). Contiene varios "?". Se guarda como una variable numérica.
+```{r}
+Breast_Cancer_train$Nuclei[Breast_Cancer_train$Nuclei == "?"] <- NA
+Breast_Cancer_train$Nuclei <- as.numeric(Breast_Cancer_train$Nuclei)
+meanNuclei <- mean(Breast_Cancer_train$Nuclei,na.rm = TRUE)
+Breast_Cancer_train$Nuclei[is.na(Breast_Cancer_train$Nuclei)] <- meanNuclei
+table(Breast_Cancer_train$Nuclei)
+hist(Breast_Cancer_train$Nuclei, breaks = 10)
+Breast_Cancer_test$Nuclei[Breast_Cancer_test$Nuclei == "?"] <- NA
+Breast_Cancer_test$Nuclei <- as.numeric(Breast_Cancer_test$Nuclei)
+Breast_Cancer_test$Nuclei[is.na(Breast_Cancer_test$Nuclei)] <- meanNuclei
+```
+
+La variable "Chrom" es una variable numérica discreta (1-10). Contiene un 11. Lo más razonable es que se incluyeran dos veces 1 a la hora de digitalizar los datos. Se cambiará a un 1.
+```{r}
+Breast_Cancer_train$Chrom[Breast_Cancer_train$Chrom == 11] <- 1
+meanChrom <- mean(Breast_Cancer_train$Chrom)
+table(Breast_Cancer_train$Chrom)
+hist(Breast_Cancer_train$Chrom, breaks = 10)
+Breast_Cancer_test$Chrom[Breast_Cancer_test$Chrom == "?"] <- NA
+Breast_Cancer_test$Chrom <- as.numeric(Breast_Cancer_test$Chrom)
+Breast_Cancer_test$Chrom[is.na(Breast_Cancer_test$Chrom)] <- meanChrom
+```
+
+La variable "Nucleoli" es una variable numérica discreta (1-10). Contiene un "?" y un 2.0. Se guarda como variable numerica.
+```{r}
+Breast_Cancer_train$Nucleoli[Breast_Cancer_train$Nucleoli == "?"] <- NA
+Breast_Cancer_train$Nucleoli[Breast_Cancer_train$Nucleoli == "2.0"] <- 2
+Breast_Cancer_train$Nucleoli <- as.numeric(Breast_Cancer_train$Nucleoli)
+meanNucleoli <- mean(Breast_Cancer_train$Nucleoli,na.rm = TRUE)
+Breast_Cancer_train$Nucleoli[is.na(Breast_Cancer_train$Nucleoli)] <- meanNucleoli
+table(Breast_Cancer_train$Nucleoli)
+hist(Breast_Cancer_train$Nucleoli, breaks = 10)
+```
+
+La variable "Mitoses" es una variable numérica discreta (1-10). No contiene valores fuera de lo esperado.
+```{r}
+table(Breast_Cancer_train$Mitoses)
+hist(Breast_Cancer_train$Mitoses, breaks = 10)
+```
+
+La variable "Group" es un factor, pese a que se ha detectado como una variable numérica al ser sus niveles numéricos. Se convierte a factor.
+```{r}
+Breast_Cancer_train$Group <- as.factor(Breast_Cancer_train$Group)
+table(Breast_Cancer_train$Group)
+barplot(prop.table(table(Breast_Cancer_train$Group)), main = "Group")
+Breast_Cancer_test$Group[Breast_Cancer_test$Group > 10] <- Breast_Cancer_test$Group[Breast_Cancer_test$Group > 10]/10
+Breast_Cancer_test$Group <- as.factor(Breast_Cancer_test$Group)
+```
+
+La variable "Class", la variable respuesta en este caso, es también un factor con solo dos niveles: "Benigno" y "Maligno", para los valores 2 y 4 respectivamente. Contiene un "?", algunos 3, un 20 y cuatro 44. Puesto que no hay razones sólidas para considerar los 3 como "Benigno" o "Maligno" se considerarán como NA. Los demás se gestionan análogamente a ejemplos anteriores.
+```{r}
+Breast_Cancer_train$Class[Breast_Cancer_train$Class == "3"] <- NA
+Breast_Cancer_train$Class[Breast_Cancer_train$Class == "?"] <- NA
+Breast_Cancer_train$Class[Breast_Cancer_train$Class == "44"] <- 4
+Breast_Cancer_train$Class[Breast_Cancer_train$Class == "20"] <- 2
+Breast_Cancer_train$Class <- as.factor(Breast_Cancer_train$Class)
+levels(Breast_Cancer_train$Class) <- c("Benigno", "Maligno")
+table(Breast_Cancer_train$Class)
+barplot(prop.table(table(Breast_Cancer_train$Class)), main = "Class")
+```
+
+# Centralización y normalización
+
+```{r}
+centralizar_normalizar = function(train, test){
+  centrada_train = train - mean(train, na.rm = TRUE)
+  centrada_test = test - mean(train, na.rm = TRUE)
+  normalizada_train = centrada_train/sd(train, na.rm = TRUE)
+  normalizada_test = centrada_test/sd(train, na.rm = TRUE)
+  return (list(normalizada_train, normalizada_test))
+}
+
+for (i in 2:(length(Breast_Cancer_train)-2)){
+  lista <- centralizar_normalizar(Breast_Cancer_train[[i]], Breast_Cancer_test[[i]])
+  Breast_Cancer_train[,paste0(names(Breast_Cancer_train)[i])] <- lista[1]
+  Breast_Cancer_test[,paste0(names(Breast_Cancer_test[i]))] <- lista[2]
+}
+
+par(mfrow = c(2,3))
+for (i in 2:7){
+  boxplot(Breast_Cancer_train[[i]], main = names(Breast_Cancer_train)[i], col = i + 1, xlab = "")
+}
+
+par(mfrow = c(2,3))
+for (i in 8:10){
+  boxplot(Breast_Cancer_train[[i]], main = names(Breast_Cancer_train)[i], col = i + 1, xlab = "")
+}
+
+for (i in 11:12){
+  barplot(prop.table(table(Breast_Cancer_train[[i]])), main = names(Breast_Cancer_train)[i], col = i + 1, xlab = "")
+}
+```
+# Dummy variables
+
+Convertimos el factor "Group" en 8 "dummy variables", para poder discriminar que grupos son de verdad relevantes a la hora de realizar el modelo.
+
+```{r}
+library(dplyr)
+
+Breast_Cancer_train$G1 <- ifelse(Breast_Cancer_train$Group == "1", 1, 0)
+Breast_Cancer_train$G2 <- ifelse(Breast_Cancer_train$Group == "2", 1, 0)
+Breast_Cancer_train$G3 <- ifelse(Breast_Cancer_train$Group == "3", 1, 0)
+Breast_Cancer_train$G4 <- ifelse(Breast_Cancer_train$Group == "4", 1, 0)
+Breast_Cancer_train$G5 <- ifelse(Breast_Cancer_train$Group == "5", 1, 0)
+Breast_Cancer_train$G6 <- ifelse(Breast_Cancer_train$Group == "6", 1, 0)
+Breast_Cancer_train$G7 <- ifelse(Breast_Cancer_train$Group == "7", 1, 0)
+Breast_Cancer_train$G8 <- ifelse(Breast_Cancer_train$Group == "8", 1, 0)
+Train_dataframe <- Breast_Cancer_train %>% select(-c(Group, ID))
+
+Breast_Cancer_test$G1 <- ifelse(Breast_Cancer_test$Group == "1", 1, 0)
+Breast_Cancer_test$G2 <- ifelse(Breast_Cancer_test$Group == "2", 1, 0)
+Breast_Cancer_test$G3 <- ifelse(Breast_Cancer_test$Group == "3", 1, 0)
+Breast_Cancer_test$G4 <- ifelse(Breast_Cancer_test$Group == "4", 1, 0)
+Breast_Cancer_test$G5 <- ifelse(Breast_Cancer_test$Group == "5", 1, 0)
+Breast_Cancer_test$G6 <- ifelse(Breast_Cancer_test$Group == "6", 1, 0)
+Breast_Cancer_test$G7 <- ifelse(Breast_Cancer_test$Group == "7", 1, 0)
+Breast_Cancer_test$G8 <- ifelse(Breast_Cancer_test$Group == "8", 1, 0)
+Test_dataframe <- Breast_Cancer_test %>% select(-c(Group, ID))
+```
+
+# Modelos bivariantes
+
+Analizamos una a una si hay alguna variable no significativa cuando es considerada individualmente frente a la variable respuesta "Class".
+
+```{r}
+p_valores <- data.frame(matrix(NA, nrow = 1, ncol = length(Breast_Cancer_train)-2))
+
+j = 1
+for (i in Train_dataframe[1:18]){
+  mod <- glm(Class ~ i, data = Train_dataframe, family = binomial(link = "logit"))
+  valor <- coef(summary(mod))[2,4]
+  p_valores[,j] <- valor
+  j <- j+1
+}
+names(p_valores) <- names(Train_dataframe[1:18])
+p_valores
+```
+
+En este caso practicamente todas las variables son significativas a excepción de algunas dummy variables de la variable "Group". Considerando un umbral menor que 0.2 para considerar si una variable es lo suficientemente significativa, los grupos 3 y 5 se pueden descartar.
+
+# Modelo multivariante
+
+Se propone un modelo multivariante inicial con todas las variables significativas halladas previamente.
+
+```{r}
+modFull <- glm(Class ~ Thick + Size + Shape + MargAdhe + SingSize + Nuclei + Chrom + Nucleoli + Mitoses + G1 + G2 + G4 + G6 + G7 + G8, data = Train_dataframe, family = binomial(link = "logit"))
+summary(modFull)
+```
+
+Con ayuda de la función "step" se van eliminando o incluyendo las distintas variables hasta que todas las incluidas sean consideradas significativas.
+
+```{r}
+modStep <- step(modFull, direction = "both",)
+summary(modStep)
+```
+
+Las variables "Mitoses" y "Nucleoli" aún no son especialmente significativas, por lo que se elimina "Mitoses", al ser la menos significativa.
+
+```{r}
+modEnd <- glm(Class ~ Thick + Shape + MargAdhe + Nuclei + Chrom + Nucleoli + G2, data = Train_dataframe, family = binomial(link = "logit"))
+summary(modEnd)
+```
+Ahora ya todas las variables son considerablemente significativas y este será el modelo que emplearemos para la predicción.
+
+
+# Tests de robustez del modelo
+
+Antes de realizar la predicción vamos a comprobar lo bueno que resulta el modelo elegido con el propio dataset de entrenamiento. Para ello se define una función que extraiga las metricas de una predicción en relación con valor real de la variable respuesta. 
+
+```{r}
+metrics <- function(observacion, prediccion, umbral){
+vectorPred <- ifelse(prediccion > umbral, 1, 0)
+vectorObs <- ifelse(observacion == "Benigno", 0, 1)
+TP <- sum((vectorPred == vectorObs) & (vectorObs == 1), na.rm = TRUE)
+TN <- sum((vectorPred == vectorObs) & (vectorObs == 0), na.rm = TRUE)
+FP <- sum((vectorPred != vectorObs) & (vectorPred == 1), na.rm = TRUE)
+FN <- sum((vectorPred != vectorObs) & (vectorPred == 0), na.rm = TRUE)
+acc <- (TP+TN)/(TP+FP+FN+TN)
+sen <- TP/(TP+FN)
+FDR <- FP/(TP+FP)
+pre <- TP/(TP+FP)
+spe = TN/(TN+FN)
+metricas <- data.frame(
+  acc = acc,
+  sen = sen,
+  FDR = FDR,
+  pre = pre,
+  spe = spe
+)
+  return(metricas)
+}
+
+metricas <- data.frame()
+
+```
+
+
+Luego, dentro de un bucle, se divide el dataset de entrenamiento aleatoriamente en dos subsets, uno de entrenamiento y otro de test (0.8 y 0.2) respectivamente. Se entrena el modelo con el de entrenamiento y se obtienen las predicciones del de test. Finalmente se obtienen las métricas de cada iteración del bucle y se comprueba la media y desviación de cada metrica para comprobar la precisión general del modelo.
+
+```{r}
+for (i in 1:20){
+  sample <- sample(c(TRUE, FALSE), nrow(Train_dataframe), replace=TRUE, prob=c(0.80,0.20))
+  train  <- Train_dataframe[sample, ]
+  test   <- Train_dataframe[!sample, ]
+  modTrain <- glm(Class ~ Thick + Shape + MargAdhe + Nuclei + Chrom + Nucleoli + G2, data = train, family = binomial(link = "logit"))
+  predic <- predict(modTrain, type = "response", newdata = test)
+  plot(sort(predic), type = "l")
+  metricas <- rbind(metricas,metrics(test$Class,predic,0.6))
+}
+
+colMeans(metricas)
+```
+El modelo parece bastante robusto, con una media de precision, sensitivity, accuracy y specificity cercanos al 95% y una false detection rate cercana al 5%.
+
+# Predicción
+
+Aplicamos el modelo entrenado sobre la base de datos de test para realizar la predicción.
+
+```{r}
+Test_prediccion <- predict(modEnd, type = "response", newdata = Test_dataframe)
+Test_prediccion <- ifelse(Test_prediccion < 0.6, "Benigno", "Maligno")
+```
+
+Guardamos las predicciones en un csv de dos columnas. Una con el ID de cada registro y otra con la variable respuesta predicha por el modelo.
+
+```{r}
+Respuesta_csv <- data.frame(
+  ID = Breast_Cancer_test$ID,
+  Class = Test_prediccion
+)
+
+write.csv(Respuesta_csv, "Prediccion.csv", row.names=FALSE)
+```
+
+
